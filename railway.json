@@ -18,13 +18,13 @@
   },
   "scaling": {
     "min_replicas": 1,
-    "max_replicas": 3,
-    "target_cpu": 70,
-    "target_memory": 80
+    "max_replicas": 2,
+    "target_cpu": 60,
+    "target_memory": 70
   },
   "environment": {
     "NODE_ENV": "production",
-    "NODE_OPTIONS": "--max-old-space-size=512"
+    "NODE_OPTIONS": "--max-old-space-size=256 --optimize-for-size"
   },
   "timeout": {
     "build": 600,
