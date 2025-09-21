@@ -27,11 +27,11 @@ class ProductionConfig {
         this.railwayUrl = process.env.RAILWAY_STATIC_URL;
         this.railwayEnvironment = process.env.RAILWAY_ENVIRONMENT_NAME || 'production';
         
-        // Performance settings for Railway
-        this.maxConnections = parseInt(process.env.MAX_CONNECTIONS || '1000');
+        // Performance settings for Railway (memory optimized)
+        this.maxConnections = parseInt(process.env.MAX_CONNECTIONS || '200');
         this.connectionTimeout = parseInt(process.env.CONNECTION_TIMEOUT || '30000');
-        this.keepAliveTimeout = parseInt(process.env.KEEP_ALIVE_TIMEOUT || '65000');
-        this.bodyLimit = parseInt(process.env.BODY_LIMIT || '1048576'); // 1MB
+        this.keepAliveTimeout = parseInt(process.env.KEEP_ALIVE_TIMEOUT || '30000'); // Reduced
+        this.bodyLimit = parseInt(process.env.BODY_LIMIT || '512000'); // 512KB (reduced)
         
         // Initialize configuration
         this.validateEnvironment();
@@ -261,8 +261,8 @@ class ProductionConfig {
                 },
                 memory: {
                     enabled: true,
-                    threshold: 0.9,    // 90% memory usage alert
-                    critical: 0.95     // 95% memory usage critical
+                    threshold: parseFloat(process.env.HEALTH_CHECK_MEMORY_THRESHOLD || '0.85'), // 85% alert
+                    critical: 0.9      // 90% critical (reduced)
                 },
                 connections: {
                     enabled: true,
@@ -368,10 +368,10 @@ class ProductionConfig {
                 idleTimeout: 30000      // 30 seconds
             },
             
-            // Memory management
+            // Memory management (optimized for Railway)
             memory: {
-                maxHeapSize: '512m',    // Railway limit
-                gcInterval: 120000,     // 2 minutes
+                maxHeapSize: process.env.MEMORY_LIMIT ? `${process.env.MEMORY_LIMIT}m` : '256m',
+                gcInterval: 60000,      // 1 minute (more frequent)
                 leakDetection: this.isProduction,
                 monitoring: true
             },
