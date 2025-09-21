@@ -225,6 +225,9 @@ class ProductionConfig {
                 headersTimeout: this.keepAliveTimeout + 5000,
                 bodyLimit: this.bodyLimit,
                 
+                // Force HTTP/1.1 for WebSocket compatibility
+                http2: false,
+                
                 // Production optimizations
                 routerOptions: {
                     ignoreTrailingSlash: true,
