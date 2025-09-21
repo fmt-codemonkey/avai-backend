@@ -342,7 +342,7 @@ class RateLimiter {
         // Decrement global connection count
         this.globalLimits.connections = Math.max(0, this.globalLimits.connections - 1);
 
-        logger.logWebSocket('connection_closed', {
+        logger.logWebSocketEvent('connection_closed', null, null, {
             ip,
             globalConnections: this.globalLimits.connections
         });
