@@ -1,0 +1,14 @@
+# Render.com deployment configuration
+# Build Command: npm install
+# Start Command: npm start
+
+# Environment: Node.js
+# Region: Oregon (US West)
+# Plan: Starter (should be sufficient)
+
+# Health Check
+# Path: /health
+# Initial delay: 30 seconds
+# Grace period: 30 seconds
+
+# Auto-Deploy: Yes (on main branch)

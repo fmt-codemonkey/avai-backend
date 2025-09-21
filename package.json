@@ -5,6 +5,7 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
+    "start-simple": "node simple-ws-test.js",
     "dev": "nodemon src/server.js --ignore logs/",
     "build": "echo 'No build step required for Node.js deployment'",
     "setup": "node setup.js",

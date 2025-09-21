@@ -201,7 +201,7 @@ setInterval(() => {
 
 // WebSocket route for chat connections
 try {
-  fastify.get('/ws', { websocket: true }, async (connection, request) => {
+  fastify.get('/ws', { websocket: true }, (socket, request) => {
     const connectionId = uuidv4();
     const connectionTime = Date.now();
     const clientIP = request.ip;
@@ -221,7 +221,7 @@ try {
           reason: connectionRateLimit.reason
         });
         
-        connection.close(1013, 'Connection rate limit exceeded');
+        socket.close(1013, 'Connection rate limit exceeded');
         return;
       }
       
@@ -235,7 +235,7 @@ try {
           remainingTime: ipStatus.remainingTime
         });
         
-        connection.close(1013, 'IP temporarily blocked');
+        socket.close(1013, 'IP temporarily blocked');
         return;
       }
       
@@ -249,7 +249,7 @@ try {
       // Initialize connection object
       const connObj = {
         id: connectionId,
-        socket: connection, // In Fastify WebSocket, connection IS the socket
+        socket: socket, // In Fastify WebSocket v11+, first param is the socket
         user: null,
         isAuthenticated: false,
         isAnonymous: false,
@@ -275,7 +275,8 @@ try {
 
       // Send welcome message with error handling
       try {
-        connection.send(JSON.stringify({
+        // In Fastify WebSocket, connection is the socket directly
+        socket.send(JSON.stringify({
           type: 'welcome',
           message: 'Connected to AVAI chat server - please authenticate',
           connectionId: connectionId,
@@ -290,7 +291,7 @@ try {
       }
 
       // Handle incoming messages
-      connection.on('message', async (messageBuffer) => {
+      socket.on('message', async (messageBuffer) => {
         const messageTimer = logger.createTimer('message_processing');
         
         try {
@@ -356,7 +357,7 @@ try {
             };
             
             try {
-              connection.send(JSON.stringify(securityError));
+              socket.send(JSON.stringify(securityError));
             } catch (sendError) {
               logger.error('Failed to send security error response', {
                 connectionId,
@@ -418,7 +419,7 @@ try {
             };
             
             try {
-              connection.send(JSON.stringify(rateLimitError));
+              socket.send(JSON.stringify(rateLimitError));
             } catch (sendError) {
               logger.error('Failed to send rate limit error response', {
                 connectionId,
@@ -491,7 +492,7 @@ try {
                 
               case 'heartbeat':
                 try {
-                  connection.send(JSON.stringify({
+                  socket.send(JSON.stringify({
                     type: 'heartbeat_ack',
                     timestamp: new Date().toISOString(),
                     serverTime: Date.now()
@@ -562,7 +563,7 @@ try {
             });
             
             try {
-              connection.close(1003, 'Too many errors');
+              socket.close(1003, 'Too many errors');
             } catch (closeError) {
               logger.error('Failed to close problematic connection', {
                 connectionId,
@@ -574,7 +575,7 @@ try {
       });
 
       // Handle connection close
-      connection.on('close', (code, reason) => {
+      socket.on('close', (code, reason) => {
         const userInfo = getUserDisplayInfo(connObj);
         const connectionDuration = Date.now() - connObj.connectionTime;
         
@@ -629,7 +630,7 @@ try {
       });
 
       // Handle connection errors
-      connection.on('error', (error) => {
+      socket.on('error', (error) => {
         const userInfo = getUserDisplayInfo(connObj);
         const wsError = errorHandler.handleWebSocketError(error, 'connection_error', {
           connectionId,
@@ -667,8 +668,8 @@ try {
       
       // Try to close the connection safely
       try {
-        if (connection && typeof connection.close === 'function') {
-          connection.close(1011, 'Server error during setup');
+        if (socket && typeof socket.close === 'function') {
+          socket.close(1011, 'Server error during setup');
         }
       } catch (closeError) {
         logger.error('Error closing WebSocket connection after setup error', {

@@ -21,9 +21,9 @@ class ProductionConfig {
         this.isDevelopment = process.env.NODE_ENV === 'development';
         this.isTest = process.env.NODE_ENV === 'test';
         
-        // Railway-specific settings
-        this.port = process.env.PORT || 8080;
-        this.host = '0.0.0.0'; // Railway requirement
+        // Cloud platform settings (Railway/Render)
+        this.port = process.env.PORT || 10000; // Render default port
+        this.host = '0.0.0.0'; // Required for cloud platforms
         this.railwayUrl = process.env.RAILWAY_STATIC_URL;
         this.railwayEnvironment = process.env.RAILWAY_ENVIRONMENT_NAME || 'production';
         

@@ -31,7 +31,11 @@
     "deploy": 300
   },
   "networking": {
-    "websockets": true,
+    "websockets": {
+      "enabled": true,
+      "path": "/ws",
+      "origins": ["*"]
+    },
     "cors": {
       "enabled": true,
       "origins": ["*"]

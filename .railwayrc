@@ -1,0 +1,6 @@
+# Railway WebSocket Configuration
+# See: https://docs.railway.com/guides/websockets
+
+# Add Railway-specific WebSocket headers
+RAILWAY_WS_ENABLED=true
+RAILWAY_WS_PATH=/ws

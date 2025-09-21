@@ -40,6 +40,13 @@ const supabaseClient = createClient(
     global: {
       headers: {
         'x-client-info': 'avai-backend-optimized'
+      },
+      fetch: (url, options = {}) => {
+        // Force IPv4 for Railway compatibility
+        return fetch(url, {
+          ...options,
+          timeout: 10000, // 10 second timeout
+        });
       }
     }
   }
@@ -58,7 +65,12 @@ if (process.env.DATABASE_URL && process.env.DATABASE_URL !== 'postgresql://postg
     maxUses: 7500,              // Connection reuse limit
     allowExitOnIdle: true,
     statement_timeout: 30000,   // 30 second query timeout
-    query_timeout: 30000        // 30 second query timeout
+    query_timeout: 30000,       // 30 second query timeout
+    // Force IPv4 to avoid Railway IPv6 connectivity issues
+    host: 'db.oscnavzuxxuirufvzemc.supabase.co',
+    ssl: {
+      rejectUnauthorized: false
+    }
   });
 } else {
   console.log('⚠️  DATABASE_URL not configured - using Supabase client only');
