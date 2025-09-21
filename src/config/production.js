@@ -1,17 +1,17 @@
 /**
  * AVAI WebSocket Backend - Production Configuration Manager
  * 
- * Comprehensive production configuration system for Railway deployment.
+ * Comprehensive production configuration system for cloud deployment.
  * Handles environment validation, CORS, logging, WebSocket configuration,
- * and Railway-specific optimizations.
+ * and cloud platform optimizations (Render, Railway, etc.).
  * 
  * Features:
  * - Production environment validation
- * - Railway-specific configurations
+ * - Multi-platform cloud configurations (Render, Railway, Vercel, etc.)
  * - CORS policy management
  * - WebSocket optimization settings
  * - Health check configuration
- * - Performance tuning for Railway limits
+ * - Performance tuning for cloud platforms
  */
 
 class ProductionConfig {
@@ -21,22 +21,54 @@ class ProductionConfig {
         this.isDevelopment = process.env.NODE_ENV === 'development';
         this.isTest = process.env.NODE_ENV === 'test';
         
-        // Cloud platform settings (Railway/Render)
-        this.port = process.env.PORT || 10000; // Render default port
+        // Cloud platform detection
+        this.platform = this.detectPlatform();
+        this.port = process.env.PORT || 10000; // Default for most cloud platforms
         this.host = '0.0.0.0'; // Required for cloud platforms
-        this.railwayUrl = process.env.RAILWAY_STATIC_URL;
-        this.railwayEnvironment = process.env.RAILWAY_ENVIRONMENT_NAME || 'production';
+        this.platformUrl = this.getPlatformUrl();
+        this.environment = process.env.NODE_ENV || 'production';
         
-        // Performance settings for Railway (memory optimized)
+        // Performance settings for cloud platforms (memory optimized)
         this.maxConnections = parseInt(process.env.MAX_CONNECTIONS || '200');
         this.connectionTimeout = parseInt(process.env.CONNECTION_TIMEOUT || '30000');
-        this.keepAliveTimeout = parseInt(process.env.KEEP_ALIVE_TIMEOUT || '30000'); // Reduced
-        this.bodyLimit = parseInt(process.env.BODY_LIMIT || '512000'); // 512KB (reduced)
+        this.keepAliveTimeout = parseInt(process.env.KEEP_ALIVE_TIMEOUT || '30000');
+        this.bodyLimit = parseInt(process.env.BODY_LIMIT || '512000'); // 512KB
         
         // Initialize configuration
         this.validateEnvironment();
         
-        console.log(`🔧 Production Config initialized - Environment: ${process.env.NODE_ENV}, Railway: ${!!this.railwayUrl}`);
+        console.log(`🔧 Production Config initialized - Environment: ${this.environment}, Platform: ${this.platform}`);
+    }
+
+    /**
+     * Detect which cloud platform is being used
+     * @returns {string} Platform name
+     */
+    detectPlatform() {
+        if (process.env.RENDER) return 'render';
+        if (process.env.RAILWAY_STATIC_URL) return 'railway';
+        if (process.env.VERCEL) return 'vercel';
+        if (process.env.HEROKU_APP_NAME) return 'heroku';
+        return 'generic';
+    }
+
+    /**
+     * Get the platform-specific URL
+     * @returns {string|null} Platform URL
+     */
+    getPlatformUrl() {
+        switch (this.platform) {
+            case 'render':
+                return process.env.RENDER_EXTERNAL_URL;
+            case 'railway':
+                return process.env.RAILWAY_STATIC_URL;
+            case 'vercel':
+                return process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null;
+            case 'heroku':
+                return process.env.HEROKU_APP_NAME ? `https://${process.env.HEROKU_APP_NAME}.herokuapp.com` : null;
+            default:
+                return null;
+        }
     }
 
     /**
@@ -109,7 +141,7 @@ class ProductionConfig {
             format: this.isProduction ? 'json' : 'pretty',
             timestamp: true,
             
-            // Railway-optimized settings
+            // Cloud platform optimized settings
             colorize: !this.isProduction,
             prettyPrint: !this.isProduction,
             
@@ -145,12 +177,14 @@ class ProductionConfig {
      */
     getCorsConfig() {
         const productionOrigins = [
-            this.railwayUrl,
+            this.platformUrl,
             'https://avai.chat',
             'https://www.avai.chat',
             'https://app.avai.chat',
             'https://avai-xi.vercel.app',
             /^https:\/\/.*\.avai\.chat$/,
+            /^https:\/\/.*\.render\.com$/,
+            /^https:\/\/.*\.onrender\.com$/,
             /^https:\/\/.*\.railway\.app$/,
             /^https:\/\/.*\.vercel\.app$/
         ].filter(Boolean);
@@ -188,7 +222,7 @@ class ProductionConfig {
     }
 
     /**
-     * Get WebSocket configuration optimized for Railway
+     * Get WebSocket configuration optimized for cloud platforms
      * @returns {Object} WebSocket configuration
      */
     getWebSocketConfig() {
@@ -197,7 +231,7 @@ class ProductionConfig {
             maxConnections: this.maxConnections,
             connectionTimeout: this.connectionTimeout,
             
-            // Railway-optimized timeouts
+            // Cloud platform optimized timeouts
             pingTimeout: 30000,    // 30 seconds
             pingInterval: 25000,   // 25 seconds
             upgradeTimeout: 10000, // 10 seconds
@@ -217,7 +251,7 @@ class ProductionConfig {
             clientTracking: true,
             maxBackpressure: 64 * 1024, // 64KB
             
-            // Railway-specific settings
+            // Cloud platform settings
             server: {
                 port: this.port,
                 host: this.host,
@@ -285,9 +319,10 @@ class ProductionConfig {
                 includeApplication: true
             },
             
-            // Railway-specific health reporting
-            railway: {
-                enabled: !!this.railwayUrl,
+            // Platform-specific health reporting
+            platform: {
+                name: this.platform,
+                enabled: !!this.platformUrl,
                 reportInterval: 60000,     // 1 minute
                 includeDeploymentInfo: true
             }
@@ -368,7 +403,7 @@ class ProductionConfig {
                 idleTimeout: 30000      // 30 seconds
             },
             
-            // Memory management (optimized for Railway)
+            // Memory management (optimized for cloud platforms)
             memory: {
                 maxHeapSize: process.env.MEMORY_LIMIT ? `${process.env.MEMORY_LIMIT}m` : '256m',
                 gcInterval: 60000,      // 1 minute (more frequent)
@@ -376,9 +411,10 @@ class ProductionConfig {
                 monitoring: true
             },
             
-            // Railway-specific optimizations
-            railway: {
-                maxConcurrency: 100,
+            // Cloud platform optimizations
+            platform: {
+                name: this.platform,
+                maxConcurrency: this.platform === 'render' ? 100 : 100,
                 requestTimeout: 30000,
                 gracefulShutdownTimeout: 10000
             }
@@ -395,12 +431,14 @@ class ProductionConfig {
                 isProduction: this.isProduction,
                 isDevelopment: this.isDevelopment,
                 nodeEnv: process.env.NODE_ENV,
-                railwayEnvironment: this.railwayEnvironment
+                platform: this.platform,
+                environment: this.environment
             },
             server: {
                 port: this.port,
                 host: this.host,
-                railwayUrl: this.railwayUrl
+                platform: this.platform,
+                platformUrl: this.platformUrl
             },
             logging: this.getLoggingConfig(),
             cors: this.getCorsConfig(),
@@ -417,7 +455,8 @@ class ProductionConfig {
     logConfigSummary() {
         const summary = {
             environment: process.env.NODE_ENV,
-            railway: !!this.railwayUrl,
+            platform: this.platform,
+            platformUrl: this.platformUrl,
             port: this.port,
             maxConnections: this.maxConnections,
             securityEnabled: this.isProduction,

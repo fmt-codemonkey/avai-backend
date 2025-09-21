@@ -306,7 +306,7 @@ try {
               [sizeValidation.error],
               { connectionId, field: 'messageSize', messageSize: messageBuffer.length }
             );
-            errorHandler.sendErrorResponse(connection, error);
+            errorHandler.sendErrorResponse(socket, error);
             connObj.errorCount++;
             messageTimer.end({ success: false, error: 'message_too_large' });
             return;
@@ -321,7 +321,7 @@ try {
               ['Invalid JSON format'],
               { connectionId, parseError: parseError.message }
             );
-            errorHandler.sendErrorResponse(connection, error);
+            errorHandler.sendErrorResponse(socket, error);
             connObj.errorCount++;
             messageTimer.end({ success: false, error: 'invalid_json' });
             return;
@@ -385,7 +385,7 @@ try {
                 originalMessage: message 
               }
             );
-            errorHandler.sendErrorResponse(connection, error);
+            errorHandler.sendErrorResponse(socket, error);
             connObj.errorCount++;
             messageTimer.end({ success: false, error: 'validation_failed' });
             return;
@@ -441,7 +441,7 @@ try {
           );
           
           if (!rateLimitResult.allowed) {
-            errorHandler.sendErrorResponse(connection, rateLimitResult.error);
+            errorHandler.sendErrorResponse(socket, rateLimitResult.error);
             connObj.errorCount++;
             messageTimer.end({ success: false, error: 'legacy_rate_limited' });
             return;
@@ -465,7 +465,7 @@ try {
                 connectionId,
                 messageType: message.type
               });
-              errorHandler.sendErrorResponse(connection, error);
+              errorHandler.sendErrorResponse(socket, error);
               connObj.errorCount++;
               messageTimer.end({ success: false, error: 'ai_canister_error' });
             }
@@ -525,7 +525,7 @@ try {
                   [`Unknown message type: ${message.type}`],
                   { connectionId, messageType: message.type, userId: connObj.user?.id }
                 );
-                errorHandler.sendErrorResponse(connection, error);
+                errorHandler.sendErrorResponse(socket, error);
                 connObj.errorCount++;
                 messageTimer.end({ success: false, error: 'unknown_message_type' });
             }
@@ -535,7 +535,7 @@ try {
               userId: connObj.user?.id,
               messageType: message.type
             });
-            errorHandler.sendErrorResponse(connection, error);
+            errorHandler.sendErrorResponse(socket, error);
             connObj.errorCount++;
             messageTimer.end({ success: false, error: 'handler_error' });
           }
@@ -549,7 +549,7 @@ try {
             errorCount: connObj.errorCount
           });
           
-          errorHandler.sendErrorResponse(connection, error);
+          errorHandler.sendErrorResponse(socket, error);
           connObj.errorCount++;
           messageTimer.end({ success: false, error: 'unexpected_error' });
           
@@ -635,7 +635,7 @@ try {
         const wsError = errorHandler.handleWebSocketError(error, 'connection_error', {
           connectionId,
           userId: connObj.user?.id,
-          wsReadyState: connection.readyState,
+          wsReadyState: socket.readyState,
           messageCount: connObj.messageCount,
           errorCount: connObj.errorCount
         });
@@ -646,7 +646,7 @@ try {
           connectionId,
           userInfo,
           error: error.message,
-          wsReadyState: connection.readyState,
+          wsReadyState: socket.readyState,
           errorCount: connObj.errorCount
         });
       });
