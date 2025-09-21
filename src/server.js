@@ -1,9 +1,17 @@
 require('dotenv').config();
 
+// Import production configuration
+const { getProductionConfig } = require('./config/production');
+const productionConfig = getProductionConfig();
+
+// Get production-optimized server configuration
+const wsConfig = productionConfig.getWebSocketConfig();
+
 const fastify = require('fastify')({ 
   logger: false, // Disable default logger, we'll use our custom logger
   requestIdLogLabel: 'reqId',
-  requestIdHeader: 'x-request-id'
+  requestIdHeader: 'x-request-id',
+  ...wsConfig.server
 });
 
 // Import utilities
@@ -43,56 +51,31 @@ const aiManager = new AIConnectionManager();
 // Register WebSocket plugin
 fastify.register(require('@fastify/websocket'));
 
-// CORS configuration
-fastify.register(require('@fastify/cors'), {
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://your-frontend-domain.com'] // Replace with your actual frontend domain
-    : true, // Allow all origins in development
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-session-id', 'x-request-id']
+// CORS configuration using production config
+fastify.register(require('@fastify/cors'), productionConfig.getCorsConfig());
+
+// Initialize comprehensive health checker
+const { HealthChecker } = require('./health/healthCheck');
+const healthChecker = new HealthChecker({
+  timeout: 10000,
+  retries: 2,
+  intervalMs: 30000
 });
 
-// Health check endpoint
+// Health check endpoints
 fastify.get('/health', async (request, reply) => {
-  const timer = logger.createTimer('health_check');
-  
   try {
-    // Test database connectivity
-    const dbHealthy = await testConnection();
+    const healthStatus = await healthChecker.performHealthCheck();
     
-    // Get rate limiter stats
-    const rateLimiterStats = rateLimiter.getStats();
-    
-    // Get AI manager status
-    const aiStatus = aiManager ? {
-      connected: aiManager.isConnected(),
-      connectionCount: aiManager.getConnectionCount ? aiManager.getConnectionCount() : 0
-    } : { connected: false, connectionCount: 0 };
-    
-    const healthStatus = {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      version: process.env.npm_package_version || '1.0.0',
-      environment: process.env.NODE_ENV || 'development',
-      database: dbHealthy ? 'connected' : 'disconnected',
-      ai: aiStatus,
-      uptime: process.uptime(),
-      activeConnections: connections.size,
-      rateLimiter: rateLimiterStats,
-      memory: process.memoryUsage()
-    };
-
-    // Log health metrics
-    logger.logHealthMetrics(healthStatus);
-
-    // If database is not healthy, return 503 status
-    if (!dbHealthy) {
+    // Set appropriate HTTP status code based on health
+    if (healthStatus.status === 'healthy') {
+      reply.code(200);
+    } else if (healthStatus.status === 'degraded') {
       reply.code(503);
-      healthStatus.status = 'degraded';
+    } else {
+      reply.code(503);
     }
-
-    timer.end({ success: true });
+    
     return healthStatus;
   } catch (error) {
     const handledError = errorHandler.handleInternalError(error, 'health_check');
@@ -102,15 +85,67 @@ fastify.get('/health', async (request, reply) => {
       requestId: request.id
     });
     
-    timer.end({ success: false, error: error.message });
-    
     reply.code(500);
     return {
       status: 'error',
       timestamp: new Date().toISOString(),
-      error: 'Internal server error',
+      error: 'Health check failed',
       requestId: request.id
     };
+  }
+});
+
+// Detailed health check endpoint for Railway monitoring
+fastify.get('/health/detailed', async (request, reply) => {
+  try {
+    const detailedHealth = await healthChecker.performDetailedHealthCheck();
+    
+    if (detailedHealth.status === 'healthy') {
+      reply.code(200);
+    } else {
+      reply.code(503);
+    }
+    
+    return detailedHealth;
+  } catch (error) {
+    logger.error('Detailed health check error', { error: error.message });
+    reply.code(500);
+    return { status: 'error', error: 'Detailed health check failed' };
+  }
+});
+
+// Individual service health checks
+fastify.get('/health/database', async (request, reply) => {
+  try {
+    const dbHealth = await healthChecker.checkDatabaseHealth();
+    reply.code(dbHealth.healthy ? 200 : 503);
+    return dbHealth;
+  } catch (error) {
+    reply.code(500);
+    return { healthy: false, error: error.message };
+  }
+});
+
+fastify.get('/health/memory', async (request, reply) => {
+  try {
+    const memoryHealth = await healthChecker.checkMemoryHealth();
+    reply.code(memoryHealth.healthy ? 200 : 503);
+    return memoryHealth;
+  } catch (error) {
+    reply.code(500);
+    return { healthy: false, error: error.message };
+  }
+});
+
+// Metrics endpoint for Railway monitoring
+fastify.get('/metrics', async (request, reply) => {
+  try {
+    const metrics = await healthChecker.getMetrics();
+    reply.code(200);
+    return metrics;
+  } catch (error) {
+    reply.code(500);
+    return { error: 'Failed to get metrics' };
   }
 });
 
@@ -741,6 +776,18 @@ const gracefulShutdown = async (signal) => {
       }
     }
     
+    // Shutdown health checker
+    try {
+      if (healthChecker) {
+        healthChecker.stopBackgroundMonitoring();
+        logger.info('Health checker shutdown completed');
+      }
+    } catch (healthError) {
+      logger.error('Error shutting down health checker', {
+        error: healthError.message
+      });
+    }
+
     // Shutdown rate limiter
     try {
       rateLimiter.shutdown();
@@ -751,8 +798,15 @@ const gracefulShutdown = async (signal) => {
       });
     }
     
-    // Close server
+    // Close server with production timeout
+    const shutdownTimeout = productionConfig.isProduction ? 10000 : 5000;
+    const shutdownTimer = setTimeout(() => {
+      logger.error('Forced shutdown due to timeout');
+      process.exit(1);
+    }, shutdownTimeout);
+    
     await fastify.close();
+    clearTimeout(shutdownTimer);
     logger.info('Server closed successfully');
     process.exit(0);
   } catch (shutdownError) {
@@ -822,18 +876,43 @@ const start = async () => {
       logger.info('Database connection established successfully');
     }
 
-    const port = parseInt(process.env.PORT) || 8080;
-    const host = process.env.HOST || '0.0.0.0';
+    // Use production configuration for server settings
+    const port = productionConfig.port;
+    const host = productionConfig.host;
+
+    // Initialize health checker with dependencies
+    healthChecker.setDependencies({
+      database: { testConnection },
+      connectionManager: { getConnections: () => connections },
+      aiService: aiManager
+    });
+
+    // Start health monitoring
+    if (productionConfig.isProduction) {
+      healthChecker.startBackgroundMonitoring();
+      logger.info('Background health monitoring started');
+    }
 
     await fastify.listen({ port, host });
     
+    // Log comprehensive startup information
     logger.info('AVAI chat server started successfully', {
       port,
       host,
       websocketEndpoint: `ws://${host}:${port}/ws`,
       healthEndpoint: `http://${host}:${port}/health`,
-      environment: process.env.NODE_ENV || 'development'
+      detailedHealthEndpoint: `http://${host}:${port}/health/detailed`,
+      metricsEndpoint: `http://${host}:${port}/metrics`,
+      environment: process.env.NODE_ENV || 'development',
+      railwayUrl: productionConfig.railwayUrl,
+      maxConnections: productionConfig.maxConnections,
+      productionMode: productionConfig.isProduction
     });
+
+    // Log production configuration summary
+    if (productionConfig.isProduction) {
+      productionConfig.logConfigSummary();
+    }
     
     // Initialize AI connection manager
     try {
