@@ -224,9 +224,11 @@ class ProductionConfig {
                 bodyLimit: this.bodyLimit,
                 
                 // Production optimizations
-                ignoreTrailingSlash: true,
-                ignoreDuplicateSlashes: true,
-                caseSensitive: false,
+                routerOptions: {
+                    ignoreTrailingSlash: true,
+                    ignoreDuplicateSlashes: true,
+                    caseSensitive: false
+                },
                 
                 // Request ID for tracing
                 genReqId: () => `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`

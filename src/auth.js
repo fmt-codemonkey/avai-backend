@@ -1,4 +1,4 @@
-const { createClerkClient } = require('@clerk/clerk-sdk-node');
+const { createClerkClient } = require('@clerk/express');
 
 // Initialize Clerk with secret key
 const clerk = createClerkClient({

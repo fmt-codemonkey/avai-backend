@@ -45,18 +45,24 @@ const supabaseClient = createClient(
   }
 );
 
-// PostgreSQL connection pool for direct SQL operations
-const pgPool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 25,                    // Maximum connections
-  min: 8,                     // Minimum connections
-  idleTimeoutMillis: 30000,   // 30 seconds
-  connectionTimeoutMillis: 10000, // 10 seconds
-  maxUses: 7500,              // Connection reuse limit
-  allowExitOnIdle: true,
-  statement_timeout: 30000,   // 30 second query timeout
-  query_timeout: 30000        // 30 second query timeout
-});
+// PostgreSQL connection pool for direct SQL operations (optional)
+let pgPool = null;
+
+if (process.env.DATABASE_URL && process.env.DATABASE_URL !== 'postgresql://postgres:[YOUR_PASSWORD]@db.oscnavzuxxuirufvzemc.supabase.co:5432/postgres') {
+  pgPool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    max: 25,                    // Maximum connections
+    min: 8,                     // Minimum connections
+    idleTimeoutMillis: 30000,   // 30 seconds
+    connectionTimeoutMillis: 10000, // 10 seconds
+    maxUses: 7500,              // Connection reuse limit
+    allowExitOnIdle: true,
+    statement_timeout: 30000,   // 30 second query timeout
+    query_timeout: 30000        // 30 second query timeout
+  });
+} else {
+  console.log('⚠️  DATABASE_URL not configured - using Supabase client only');
+}
 
 // Performance monitoring
 let dbMetrics = {
@@ -241,14 +247,16 @@ async function testConnection() {
       return false;
     }
 
-    // Test PostgreSQL pool connection
-    const client = await pgPool.connect();
-    await client.query('SELECT 1');
-    client.release();
+    // Test PostgreSQL pool connection (if available)
+    if (pgPool) {
+      const client = await pgPool.connect();
+      await client.query('SELECT 1');
+      client.release();
+      console.log(`📊 Pool stats - Total: ${pgPool.totalCount}, Idle: ${pgPool.idleCount}, Waiting: ${pgPool.waitingCount}`);
+    }
 
     const responseTime = Date.now() - startTime;
-    console.log(`✅ Database connection test successful (${responseTime}ms)`);
-    console.log(`📊 Pool stats - Total: ${pgPool.totalCount}, Idle: ${pgPool.idleCount}, Waiting: ${pgPool.waitingCount}`);
+    console.log(`✅ Database connection test successful (${responseTime}ms) - using Supabase client`);
     
     return true;
   } catch (error) {
