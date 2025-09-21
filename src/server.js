@@ -524,6 +524,7 @@ try {
               // Chat message operations
               case 'send_message':
               case 'typing_indicator':
+              case 'analysis_request':
                 await handleChatMessage(connObj, message, logger, connections, aiManager, connectionId);
                 messageTimer.end({ success: true, messageType: message.type });
                 break;

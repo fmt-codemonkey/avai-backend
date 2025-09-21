@@ -699,6 +699,52 @@ async function handleTypingIndicator(connection, message) {
 }
 
 /**
+ * Handle analysis request messages - frontend compatibility layer
+ * @param {Object} connection - WebSocket connection object with user data
+ * @param {Object} message - Analysis request message with prompt
+ * @param {Object} aiManager - AI Connection Manager instance
+ * @param {string} connectionId - WebSocket connection ID
+ */
+async function handleAnalysisRequest(connection, message, aiManager, connectionId) {
+  const timer = logger.createTimer('handle_analysis_request');
+  const messageId = message.messageId || uuidv4();
+  
+  try {
+    // Transform analysis_request to send_message format for internal processing
+    const transformedMessage = {
+      ...message,
+      type: 'send_message',
+      content: message.prompt, // Map prompt to content
+      threadId: message.threadId || uuidv4() // Generate thread ID if not provided
+    };
+    
+    logger.info('Analysis request received', {
+      connectionId: connection.id,
+      userId: connection.user?.id,
+      promptLength: message.prompt?.length,
+      clientId: message.client_id,
+      messageId
+    });
+    
+    // Use existing send_message handler with transformed message
+    await handleSendMessage(connection, transformedMessage, aiManager, connectionId);
+    
+    timer.end({ success: true, promptLength: message.prompt?.length });
+    
+  } catch (error) {
+    const handledError = errorHandler.handleInternalError(error, 'handle_analysis_request', {
+      connectionId: connection.id,
+      userId: connection.user?.id,
+      messageId,
+      clientId: message.client_id
+    });
+    
+    errorHandler.sendErrorResponse(connection.socket, handledError, messageId);
+    timer.end({ success: false, error: 'unexpected_error' });
+  }
+}
+
+/**
  * Main chat message handler - routes messages to appropriate handlers
  * @param {Object} connection - WebSocket connection object with user data
  * @param {Object} message - WebSocket message object
@@ -734,6 +780,10 @@ async function handleChatMessage(connection, message, connections = null, aiMana
         await handleSendMessage(connection, message, aiManager, connectionId);
         break;
         
+      case 'analysis_request':
+        await handleAnalysisRequest(connection, message, aiManager, connectionId);
+        break;
+        
       case 'typing_indicator':
         await handleTypingIndicator(connection, message);
         break;
@@ -745,7 +795,7 @@ async function handleChatMessage(connection, message, connections = null, aiMana
             connectionId: connection.id, 
             userId: connection.user?.id,
             messageType: message.type,
-            validTypes: ['send_message', 'typing_indicator']
+            validTypes: ['send_message', 'analysis_request', 'typing_indicator']
           }
         );
         errorHandler.sendErrorResponse(connection.socket, error, messageId);

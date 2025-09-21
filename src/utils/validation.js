@@ -60,7 +60,8 @@ class Validator {
       'delete_thread',
       'update_thread_title',
       'authenticate',
-      'heartbeat'
+      'heartbeat',
+      'analysis_request'
     ];
   }
 
@@ -133,6 +134,9 @@ class Validator {
         break;
       case 'authenticate':
         errors.push(...this.validateAuthenticate(message));
+        break;
+      case 'analysis_request':
+        errors.push(...this.validateAnalysisRequest(message));
         break;
       case 'get_threads':
       case 'heartbeat':
@@ -290,6 +294,29 @@ class Validator {
 
     if (message.anonymous !== undefined && typeof message.anonymous !== 'boolean') {
       errors.push('Anonymous flag must be a boolean');
+    }
+
+    return errors;
+  }
+
+  /**
+   * Validate analysis_request type
+   * @param {Object} message - Message object
+   * @returns {Array} Validation errors
+   */
+  validateAnalysisRequest(message) {
+    const errors = [];
+
+    if (!message.prompt || typeof message.prompt !== 'string') {
+      errors.push('Prompt is required and must be a string');
+    } else if (message.prompt.length === 0) {
+      errors.push('Prompt cannot be empty');
+    } else if (message.prompt.length > this.maxMessageLength) {
+      errors.push(`Prompt exceeds maximum length of ${this.maxMessageLength} characters`);
+    }
+
+    if (message.client_id && typeof message.client_id !== 'string') {
+      errors.push('Client ID must be a string');
     }
 
     return errors;
