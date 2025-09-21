@@ -48,10 +48,14 @@ class AIConnectionManager {
    * @param {Object} extra - Extra data
    */
   log(level, message, extra = null) {
-    if (this.logger) {
-      this.logger[level](message, extra);
-    } else {
-      console[level === 'error' ? 'error' : 'log'](`[AI] ${message}`, extra);
+    try {
+      if (this.logger && typeof this.logger[level] === 'function') {
+        this.logger[level](message, extra);
+      } else {
+        console[level === 'error' ? 'error' : 'log'](`[AI] ${message}`, extra);
+      }
+    } catch (error) {
+      console.error(`[AI] Logging error:`, error.message);
     }
   }
 

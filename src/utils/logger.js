@@ -169,10 +169,14 @@ class Logger {
     };
 
     // Add request context if available
-    if (metadata.requestId) {
-      const context = this.getRequestContext(metadata.requestId);
-      if (Object.keys(context).length > 0) {
-        logEntry.request = context;
+    if (metadata && metadata.requestId) {
+      try {
+        const context = this.getRequestContext(metadata.requestId);
+        if (context && Object.keys(context).length > 0) {
+          logEntry.request = context;
+        }
+      } catch (error) {
+        // Silently fail if request context is unavailable
       }
     }
 

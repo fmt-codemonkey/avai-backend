@@ -414,15 +414,19 @@ class RateLimiter {
             timestamp => now - timestamp < 10000 // Keep last 10 seconds
         );
 
-        if (logger && typeof logger.logPerformance === 'function') {
-            logger.logPerformance('rate_limiter_cleanup', 60000, {
-                userEntries: this.userLimits.size,
-                anonymousEntries: this.anonymousLimits.size,
+        try {
+            if (logger && typeof logger.logPerformance === 'function') {
+                logger.logPerformance('rate_limiter_cleanup', 60000, {
+                    userEntries: this.userLimits.size,
+                    anonymousEntries: this.anonymousLimits.size,
                 ipEntries: this.ipLimits.size,
                 globalMessages: this.globalLimits.messages.length
             });
         } else {
             console.log('Rate limiter cleanup completed');
+        }
+        } catch (error) {
+            console.error('Rate limiter cleanup error:', error.message);
         }
     }
 
