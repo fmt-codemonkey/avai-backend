@@ -199,15 +199,6 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000); // Run every 5 minutes
 
-// Simple test WebSocket route
-fastify.get('/test-ws', { websocket: true }, async (connection, request) => {
-  connection.socket.send(JSON.stringify({
-    type: 'test',
-    message: 'Test WebSocket connection successful',
-    timestamp: new Date().toISOString()
-  }));
-});
-
 // WebSocket route for chat connections
 try {
   fastify.get('/ws', { websocket: true }, async (connection, request) => {
@@ -690,8 +681,9 @@ try {
       connections.delete(connectionId);
     }
   });
-});
-
+} catch (setupError) {
+  console.error('WebSocket setup error:', setupError);
+}
 // Error handler
 fastify.setErrorHandler(async (error, request, reply) => {
   const handledError = errorHandler.handleInternalError(error, 'fastify_error_handler', {
