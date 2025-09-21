@@ -199,8 +199,17 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000); // Run every 5 minutes
 
+// Simple test WebSocket route
+fastify.get('/test-ws', { websocket: true }, async (connection, request) => {
+  connection.socket.send(JSON.stringify({
+    type: 'test',
+    message: 'Test WebSocket connection successful',
+    timestamp: new Date().toISOString()
+  }));
+});
+
 // WebSocket route for chat connections
-fastify.register(async function (fastify) {
+try {
   fastify.get('/ws', { websocket: true }, async (connection, request) => {
     const connectionId = uuidv4();
     const connectionTime = Date.now();
