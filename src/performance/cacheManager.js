@@ -14,7 +14,7 @@
  */
 
 const NodeCache = require('node-cache');
-const LRU = require('lru-cache');
+const { LRUCache } = require('lru-cache');
 
 class AdvancedCacheManager {
     constructor(options = {}) {
@@ -46,7 +46,7 @@ class AdvancedCacheManager {
         };
 
         // Initialize L1 Cache (Ultra-fast for hot data)
-        this.l1Cache = new LRU({
+        this.l1Cache = new LRUCache({
             max: this.config.l1.maxSize,
             ttl: this.config.l1.ttl * 1000, // Convert to milliseconds
             updateAgeOnGet: true,
@@ -116,16 +116,6 @@ class AdvancedCacheManager {
      * Initialize event listeners for cache management
      */
     initializeEventListeners() {
-        // L1 Cache events
-        this.l1Cache.on('evict', (key, value) => {
-            this.metrics.evictions.l1++;
-            this.metrics.evictions.total++;
-            // Move evicted items to L2 if still valuable
-            if (value && typeof value === 'object' && value.accessCount > 1) {
-                this.l2Cache.set(key, value, this.config.l2.ttl);
-            }
-        });
-
         // L2 Cache events
         this.l2Cache.on('expired', (key, value) => {
             // Track expiration for warming decisions

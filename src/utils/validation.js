@@ -3,7 +3,49 @@
  * Provides comprehensive validation, sanitization, and security checks
  */
 
-const { v4: uuidv4, validate: validateUUID } = require('uuid');
+const crypto = require('crypto');
+
+// UUID helper functions to handle ES module compatibility
+let uuidModule = null;
+
+async function loadUUID() {
+  if (!uuidModule) {
+    try {
+      uuidModule = await import('uuid');
+    } catch (error) {
+      // Fallback to older CommonJS version if available
+      try {
+        uuidModule = require('uuid');
+      } catch (fallbackError) {
+        console.error('Unable to load UUID module:', error, fallbackError);
+        throw new Error('UUID module not available');
+      }
+    }
+  }
+  return uuidModule;
+}
+
+// Synchronous UUID functions using crypto.randomUUID (Node.js 14.17.0+)
+function uuidv4() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback UUID v4 generation
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+function validateUUID(uuid) {
+  if (!uuid || typeof uuid !== 'string') {
+    return false;
+  }
+  // UUID v4 regex pattern
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+}
 
 class Validator {
   constructor() {
@@ -259,9 +301,6 @@ class Validator {
    * @returns {boolean} True if valid UUID
    */
   validateUUID(uuid) {
-    if (!uuid || typeof uuid !== 'string') {
-      return false;
-    }
     return validateUUID(uuid);
   }
 

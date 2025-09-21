@@ -1,5 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
-const { Pool } = require('pg-pool');
+const { Pool } = require('pg');
 const { getCacheManager } = require('./performance/cacheManager');
 const { getQueryOptimizer } = require('./performance/queryOptimizer');
 
