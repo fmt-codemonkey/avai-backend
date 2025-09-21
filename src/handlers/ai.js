@@ -199,14 +199,22 @@ class AIConnectionManager {
 
       const requestId = uuidv4();
       
-      // Prepare AI request
+      // Prepare AI request in the format that works with AVAI Canister
       const aiRequest = {
-        type: 'process',
+        type: 'analysis_request',
+        prompt: conversationContext.messages && conversationContext.messages.length > 0 
+          ? conversationContext.messages[conversationContext.messages.length - 1].content 
+          : '',
+        client_id: `user_${userId || 'anonymous'}`,
+        session_data: {
+          session_id: `session_${threadId}`,
+          user_id: userId,
+          is_anonymous: !userId
+        },
+        // Include additional context for comprehensive analysis
         request_id: requestId,
-        conversation_id: threadId,
-        user_id: userId,
-        timestamp: new Date().toISOString(),
-        ...conversationContext
+        conversation_context: conversationContext,
+        timestamp: new Date().toISOString()
       };
 
       // Store pending request
