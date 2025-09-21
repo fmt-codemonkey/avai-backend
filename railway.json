@@ -1,0 +1,40 @@
+{
+  "build": {
+    "command": "npm install --production"
+  },
+  "start": {
+    "command": "npm start"
+  },
+  "healthcheck": {
+    "path": "/health",
+    "timeout": 30,
+    "interval": 60,
+    "retries": 3
+  },
+  "restart": {
+    "policy": "on-failure",
+    "max_attempts": 3,
+    "delay": 5000
+  },
+  "scaling": {
+    "min_replicas": 1,
+    "max_replicas": 3,
+    "target_cpu": 70,
+    "target_memory": 80
+  },
+  "environment": {
+    "NODE_ENV": "production",
+    "NODE_OPTIONS": "--max-old-space-size=512"
+  },
+  "timeout": {
+    "build": 600,
+    "deploy": 300
+  },
+  "networking": {
+    "websockets": true,
+    "cors": {
+      "enabled": true,
+      "origins": ["*"]
+    }
+  }
+}
