@@ -36,5 +36,6 @@
       "enabled": true,
       "origins": ["*"]
     }
-  }
+  },
+  "version": "1.0.1"
 }
