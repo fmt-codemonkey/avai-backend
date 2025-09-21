@@ -217,13 +217,15 @@ setInterval(() => {
 
 // WebSocket route for chat connections
 try {
-  fastify.get('/ws', { websocket: true }, (socket, request) => {
-    const connectionId = uuidv4();
-    const connectionTime = Date.now();
-    const clientIP = request.ip;
-    const userAgent = request.headers['user-agent'] || '';
-    
-    try {
+  // Register WebSocket routes properly for Fastify v11+
+  fastify.register(async function (fastify) {
+    fastify.get('/ws', { websocket: true }, (socket, request) => {
+      const connectionId = uuidv4();
+      const connectionTime = Date.now();
+      const clientIP = request.ip;
+      const userAgent = request.headers['user-agent'] || '';
+      
+      try {
       // Pre-connection security checks
       const connectionRateLimit = securityRateLimiter.checkRateLimit('connection', {
         ip: clientIP,
@@ -697,6 +699,7 @@ try {
       // Cleanup on error
       connections.delete(connectionId);
     }
+    });
   });
 } catch (setupError) {
   console.error('WebSocket setup error:', setupError);
