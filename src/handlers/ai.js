@@ -50,9 +50,18 @@ class AIConnectionManager {
   log(level, message, extra = null) {
     try {
       if (this.logger && typeof this.logger[level] === 'function') {
-        this.logger[level](message, extra);
+        // Only pass extra if it's not null/undefined and is an object
+        if (extra !== null && extra !== undefined && typeof extra === 'object') {
+          this.logger[level](message, extra);
+        } else {
+          this.logger[level](message);
+        }
       } else {
-        console[level === 'error' ? 'error' : 'log'](`[AI] ${message}`, extra);
+        if (extra !== null && extra !== undefined) {
+          console[level === 'error' ? 'error' : 'log'](`[AI] ${message}`, extra);
+        } else {
+          console[level === 'error' ? 'error' : 'log'](`[AI] ${message}`);
+        }
       }
     } catch (error) {
       console.error(`[AI] Logging error:`, error.message);

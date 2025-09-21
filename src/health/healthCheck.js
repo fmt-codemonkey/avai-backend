@@ -17,13 +17,17 @@ const logger = require('../utils/logger');
 
 class HealthChecker {
     constructor(options = {}) {
+        // Detect cloud platform for appropriate thresholds
+        const isCloudPlatform = !!(process.env.RENDER || process.env.RAILWAY_STATIC_URL || process.env.VERCEL || process.env.HEROKU_APP_NAME);
+        
         this.options = {
             timeout: options.timeout || 10000,        // 10 seconds
             retries: options.retries || 2,
             intervalMs: options.intervalMs || 30000,  // 30 seconds
             alertThresholds: {
-                memory: 0.9,      // 90% memory usage
-                cpu: 0.8,         // 80% CPU usage
+                // More lenient thresholds for cloud platforms
+                memory: isCloudPlatform ? 0.95 : 0.9,      // 95% for cloud, 90% for local
+                cpu: isCloudPlatform ? 0.9 : 0.8,          // 90% for cloud, 80% for local
                 connections: 0.85, // 85% of max connections
                 responseTime: 5000 // 5 seconds
             },

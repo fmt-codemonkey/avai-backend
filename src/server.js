@@ -114,6 +114,22 @@ fastify.get('/health/detailed', async (request, reply) => {
   }
 });
 
+// Root route - API info and status
+fastify.get('/', async (request, reply) => {
+  return {
+    name: 'AVAI WebSocket Backend',
+    version: process.env.npm_package_version || '1.0.0',
+    status: 'running',
+    platform: productionConfig.getAllConfig().environment.platform || 'generic',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      health: '/health',
+      websocket: '/ws',
+      metrics: '/metrics'
+    }
+  };
+});
+
 // Individual service health checks
 fastify.get('/health/database', async (request, reply) => {
   try {
