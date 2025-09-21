@@ -799,8 +799,8 @@ const gracefulShutdown = async (signal) => {
     
     // Shutdown health checker
     try {
-      if (healthChecker) {
-        healthChecker.stopBackgroundMonitoring();
+      if (healthChecker && typeof healthChecker.cleanup === 'function') {
+        healthChecker.cleanup();
         logger.info('Health checker shutdown completed');
       }
     } catch (healthError) {

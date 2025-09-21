@@ -1317,8 +1317,13 @@ async function cleanup() {
   console.log('🧹 Cleaning up database connections and caches...');
   
   try {
-    // Close PostgreSQL pool
-    await pgPool.end();
+    // Close PostgreSQL pool (only if it exists) with timeout
+    if (pgPool && typeof pgPool.end === 'function') {
+      await Promise.race([
+        pgPool.end(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Database cleanup timeout')), 5000))
+      ]);
+    }
     
     // Cleanup cache manager
     if (cacheManager && typeof cacheManager.cleanup === 'function') {
