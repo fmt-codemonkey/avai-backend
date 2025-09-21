@@ -24,7 +24,7 @@
   },
   "environment": {
     "NODE_ENV": "production",
-    "NODE_OPTIONS": "--max-old-space-size=256 --optimize-for-size"
+    "NODE_OPTIONS": "--max-old-space-size=256"
   },
   "timeout": {
     "build": 600,
