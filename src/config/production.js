@@ -149,8 +149,10 @@ class ProductionConfig {
             'https://avai.chat',
             'https://www.avai.chat',
             'https://app.avai.chat',
+            'https://avai-xi.vercel.app',
             /^https:\/\/.*\.avai\.chat$/,
-            /^https:\/\/.*\.railway\.app$/
+            /^https:\/\/.*\.railway\.app$/,
+            /^https:\/\/.*\.vercel\.app$/
         ].filter(Boolean);
 
         const developmentOrigins = [
