@@ -414,12 +414,16 @@ class RateLimiter {
             timestamp => now - timestamp < 10000 // Keep last 10 seconds
         );
 
-        logger.logPerformance('rate_limiter_cleanup', {
-            userEntries: this.userLimits.size,
-            anonymousEntries: this.anonymousLimits.size,
-            ipEntries: this.ipLimits.size,
-            globalMessages: this.globalLimits.messages.length
-        });
+        if (logger && typeof logger.logPerformance === 'function') {
+            logger.logPerformance('rate_limiter_cleanup', 60000, {
+                userEntries: this.userLimits.size,
+                anonymousEntries: this.anonymousLimits.size,
+                ipEntries: this.ipLimits.size,
+                globalMessages: this.globalLimits.messages.length
+            });
+        } else {
+            console.log('Rate limiter cleanup completed');
+        }
     }
 
     /**

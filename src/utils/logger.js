@@ -578,6 +578,20 @@ class Logger {
   }
 
   /**
+   * Log performance operation timing
+   * @param {string} operation - Operation name
+   * @param {number} duration - Duration in ms
+   * @param {Object} metadata - Additional metadata
+   */
+  logPerformance(operation, duration, metadata = {}) {
+    this.info(`Performance: ${operation}`, {
+      duration: duration,
+      operation: operation,
+      ...metadata
+    });
+  }
+
+  /**
    * Log security events with enhanced metadata
    * @param {string} event - Security event type
    * @param {string} severity - Event severity
