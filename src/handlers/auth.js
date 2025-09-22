@@ -1,5 +1,6 @@
-const { verifyJWT, extractUser, createAnonymousUser } = require('../auth');
+const { verifyClerkToken } = require('../config/clerk');  
 const { upsertUser, updateUserActivity } = require('../database');
+const { createAnonymousUser } = require('../auth');
 const { v4: uuidv4 } = require('uuid');
 
 // Import error handling utilities
@@ -133,81 +134,34 @@ async function handleAuth(connection, message) {
       return;
     }
 
-    // Comprehensive JWT security validation
-    let jwtValidationResult;
-    try {
-      jwtValidationResult = await authSecurity.validateJWT(
-        token,
-        connection.ip,
-        connection.userAgent
-      );
-    } catch (jwtError) {
-      await authSecurity.recordFailedAttempt(
-        connection.ip, 
-        'JWT_VALIDATION_ERROR', 
-        connection.userAgent
-      );
-      
-      const error = errorHandler.handleAuthenticationError(
-        'JWT validation failed',
-        { connectionId: connection.id, error: jwtError.message }
-      );
-      
-      rateLimiter.recordRequest(connection.id, 'authenticate', false, false);
-      errorHandler.sendErrorResponse(connection.socket, error, messageId);
-      timer.end({ success: false, error: 'jwt_validation_error' });
-      return;
-    }
-    
-    if (!jwtValidationResult.isValid) {
-      // Failed attempt already recorded in authSecurity.validateJWT
-      
-      const authError = {
-        type: 'error',
-        error_type: 'AUTH_FAILED',
-        message: 'Authentication failed',
-        timestamp: new Date().toISOString(),
-        messageId,
-        securityFlags: jwtValidationResult.securityFlags,
-        riskLevel: jwtValidationResult.riskLevel
-      };
-      
-      connection.socket.send(JSON.stringify(authError));
-      rateLimiter.recordRequest(connection.id, 'authenticate', false, false);
-      timer.end({ success: false, error: 'jwt_validation_failed' });
-      return;
-    }
+    // Record security attempt for monitoring
+    await authSecurity.recordFailedAttempt(
+      connection.ip, 
+      'CLERK_TOKEN_VALIDATION_ATTEMPT', 
+      connection.userAgent
+    );
 
-    // Legacy verification for backward compatibility
-    let verificationResult;
+    // Verify Clerk JWT token and get user data
+    let user;
     try {
-      verificationResult = await errorHandler.executeWithRetry(
-        () => verifyJWT(token),
-        { operation: 'verify_jwt', connectionId: connection.id },
+      user = await errorHandler.executeWithRetry(
+        () => verifyClerkToken(token),
+        { operation: 'verify_clerk_token', connectionId: connection.id },
         2,
         1000
       );
-    } catch (verifyError) {
-      const error = errorHandler.handleAuthenticationError(
-        'Token verification failed',
-        { connectionId: connection.id, error: verifyError.message }
-      );
-      
-      rateLimiter.recordRequest(connection.id, 'authenticate', false, false);
-      errorHandler.sendErrorResponse(connection.socket, error, messageId);
-      timer.end({ success: false, error: 'token_verification_failed' });
-      return;
-    }
 
-    // Extract full user data
-    let userResult;
-    try {
-      userResult = await errorHandler.executeWithRetry(
-        () => extractUser(token),
-        { operation: 'extract_user', connectionId: connection.id },
-        2,
-        1000
-      );
+      if (!user) {
+        const error = errorHandler.handleAuthenticationError(
+          'Invalid or expired Clerk token',
+          { connectionId: connection.id }
+        );
+        
+        rateLimiter.recordRequest(connection.id, 'authenticate', false, false);
+        errorHandler.sendErrorResponse(connection.socket, error, messageId);
+        timer.end({ success: false, error: 'invalid_clerk_token' });
+        return;
+      }
     } catch (extractError) {
       const error = errorHandler.handleAuthenticationError(
         'Failed to extract user information',
@@ -219,25 +173,9 @@ async function handleAuth(connection, message) {
       timer.end({ success: false, error: 'user_extraction_failed' });
       return;
     }
-    
-    if (!userResult.isAuthenticated || userResult.error) {
-      const error = errorHandler.handleAuthenticationError(
-        userResult.error || 'Failed to retrieve user information',
-        { 
-          connectionId: connection.id, 
-          extractionError: userResult.error,
-          isAuthenticated: userResult.isAuthenticated 
-        }
-      );
-      
-      rateLimiter.recordRequest(connection.id, 'authenticate', false, false);
-      errorHandler.sendErrorResponse(connection.socket, error, messageId);
-      timer.end({ success: false, error: 'user_data_invalid' });
-      return;
-    }
 
     // Validate user data
-    const userValidation = validator.validateUserInput(userResult.user, ['id', 'email'], {
+    const userValidation = validator.validateUserInput(user, ['id', 'email'], {
       id: 'string',
       email: 'string',
       name: 'string'
@@ -258,8 +196,8 @@ async function handleAuth(connection, message) {
     // Upsert user in the database with error handling
     try {
       const upsertResult = await errorHandler.executeWithRetry(
-        () => upsertUser(userResult.user),
-        { operation: 'upsert_user', userId: userResult.user.id, connectionId: connection.id },
+        () => upsertUser(user),
+        { operation: 'upsert_user', userId: user.id, connectionId: connection.id },
         3,
         1000
       );
@@ -267,14 +205,14 @@ async function handleAuth(connection, message) {
       if (upsertResult.error) {
         logger.warn('Failed to upsert user, continuing with authentication', {
           connectionId: connection.id,
-          userId: userResult.user.id,
+          userId: user.id,
           error: upsertResult.error
         });
       } else {
         logger.logDatabaseOperation(
           'upsert_user',
           'users',
-          userResult.user.id,
+          user.id,
           true,
           timer.end(),
           { connectionId: connection.id }
@@ -283,20 +221,20 @@ async function handleAuth(connection, message) {
     } catch (upsertError) {
       logger.warn('User upsert failed, continuing with authentication', {
         connectionId: connection.id,
-        userId: userResult.user.id,
+        userId: user.id,
         error: upsertError.message
       });
       // Continue with authentication even if user upsert fails
     }
 
     // Store user data on connection with security information
-    connection.user = jwtValidationResult.user || userResult.user;
+    connection.user = user;
     connection.isAuthenticated = true;
     connection.isAnonymous = false;
     connection.token = token;
     connection.authTime = Date.now();
-    connection.securityFlags = jwtValidationResult.securityFlags || [];
-    connection.riskLevel = jwtValidationResult.riskLevel || 'LOW';
+    connection.securityFlags = [];
+    connection.riskLevel = 'LOW';
     
     // Clear any failed attempts for this IP on successful auth
     authSecurity.clearFailedAttempts(connection.ip);
@@ -307,7 +245,7 @@ async function handleAuth(connection, message) {
     logger.logAuthentication(true, connection.user.id, connection.id, null, {
       email: connection.user.email,
       name: connection.user.name,
-      authMethod: 'jwt',
+      authMethod: 'clerk',
       securityFlags: connection.securityFlags,
       riskLevel: connection.riskLevel,
       ip: connection.ip
@@ -318,13 +256,13 @@ async function handleAuth(connection, message) {
       type: 'auth_success',
       success: true,
       user: {
-        id: userResult.user.id,
-        email: userResult.user.email,
-        name: userResult.user.name,
-        firstName: userResult.user.firstName,
-        lastName: userResult.user.lastName,
-        username: userResult.user.username,
-        imageUrl: userResult.user.imageUrl,
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        username: user.username,
+        imageUrl: user.imageUrl,
         isAnonymous: false,
         isAuthenticated: true
       },
@@ -336,12 +274,12 @@ async function handleAuth(connection, message) {
     
     logger.info('User authenticated successfully', {
       connectionId: connection.id,
-      userId: userResult.user.id,
-      email: userResult.user.email,
-      name: userResult.user.name
+      userId: user.id,
+      email: user.email,
+      name: user.name
     });
     
-    timer.end({ success: true, authType: 'jwt', userId: userResult.user.id });
+    timer.end({ success: true, authType: 'clerk', userId: user.id });
     
   } catch (error) {
     const handledError = errorHandler.handleInternalError(error, 'handle_auth', {

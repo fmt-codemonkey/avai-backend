@@ -26,8 +26,12 @@ const securityValidator = require('./security/validator');
 const authSecurity = require('./security/authSecurity');
 
 // Import database and auth
-const { testConnection, upsertUser, updateUserActivity } = require('./database');
+const { testConnection, upsertUser, updateUserActivity, getUser } = require('./database');
 const { authenticateRequest } = require('./auth');
+
+// Import Clerk authentication
+const { getAuth } = require('@clerk/fastify');
+const { verifyClerkToken } = require('./config/clerk');
 
 // Import handlers
 const { handleAuth, isValidConnection, getUserDisplayInfo, needsReauth } = require('./handlers/auth');
@@ -125,8 +129,70 @@ fastify.get('/', async (request, reply) => {
     endpoints: {
       health: '/health',
       websocket: '/ws',
-      metrics: '/metrics'
+      metrics: '/metrics',
+      auth: '/api/auth/me'
     }
+  };
+});
+
+// Clerk authentication middleware
+async function requireAuth(request, reply) {
+  const authHeader = request.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    reply.code(401).send({ error: 'Missing or invalid authorization header' });
+    return;
+  }
+
+  const token = authHeader.replace('Bearer ', '');
+  const user = await verifyClerkToken(token);
+  
+  if (!user) {
+    reply.code(401).send({ error: 'Invalid or expired token' });
+    return;
+  }
+
+  request.user = user;
+}
+
+// Protected API routes
+fastify.get('/api/auth/me', {
+  preHandler: requireAuth
+}, async (request, reply) => {
+  return {
+    user: request.user,
+    authenticated: true,
+    timestamp: new Date().toISOString()
+  };
+});
+
+fastify.get('/api/user/profile', {
+  preHandler: requireAuth
+}, async (request, reply) => {
+  // Get user profile from database
+  try {
+    const userProfile = await getUser(request.user.id);
+    return {
+      profile: userProfile.data || request.user,
+      lastActive: new Date().toISOString()
+    };
+  } catch (error) {
+    reply.code(500).send({ error: 'Failed to fetch user profile' });
+  }
+});
+
+// Test authentication endpoint
+fastify.post('/api/auth/test', {
+  preHandler: requireAuth
+}, async (request, reply) => {
+  return {
+    message: 'Authentication successful!',
+    user: {
+      id: request.user.id,
+      name: request.user.name,
+      email: request.user.email
+    },
+    timestamp: new Date().toISOString()
   };
 });
 
