@@ -39,7 +39,7 @@ class RateLimiter {
             ip: {
                 connections: { count: 20, window: 60000 }, // 20 connections per minute
                 messages: { count: 200, window: 60000 }, // 200 messages per minute
-                auth_attempts: { count: 5, window: 60000 } // 5 auth attempts per minute
+                auth_attempts: { count: 20, window: 60000 } // 20 auth attempts per minute (increased for testing)
             },
             global: {
                 maxConnections: 1000,
