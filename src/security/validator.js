@@ -545,20 +545,27 @@ class SecurityValidator {
             }
         }
 
-        // Additional security checks on token content
+        // Additional security checks on token content (skip SQL injection for JWT tokens)
         const contentCheck = this.validateString(token, {
             blockXSS: true,
-            blockSQL: true,
-            blockCommand: true
+            blockSQL: false,    // JWT tokens can contain SQL-like patterns in base64
+            blockCommand: true,
+            blockPath: true
         });
 
-        if (!contentCheck.isValid || contentCheck.threats.length > 0) {
+        // Only fail on XSS or command injection, not SQL patterns
+        const criticalThreats = contentCheck.threats.filter(t => 
+            t.type === 'XSS_ATTEMPT' || t.type === 'COMMAND_INJECTION' || t.type === 'PATH_TRAVERSAL'
+        );
+
+        if (criticalThreats.length > 0) {
             result.isValid = false;
             result.riskLevel = 'HIGH';
             result.threats.push({
                 type: 'MALICIOUS_JWT_CONTENT',
                 description: 'JWT contains potentially malicious content',
-                severity: 'HIGH'
+                severity: 'HIGH',
+                details: criticalThreats
             });
         }
 
