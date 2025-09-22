@@ -345,13 +345,59 @@ try {
             return;
           }
           
-          // Enhanced security validation
-          const securityValidation = securityValidator.validateInput(message, {
-            blockXSS: true,
-            blockSQL: true,
-            blockCommand: true,
-            blockPath: true
-          });
+          // Enhanced security validation (skip for authentication messages)
+          let securityValidation;
+          if (message.type === 'authenticate') {
+            // For authentication messages, only validate the structure but not the JWT token content
+            securityValidation = securityValidator.validateInput(message, {
+              blockXSS: true,
+              blockSQL: false,   // Allow JWT tokens which may contain SQL-like patterns
+              blockCommand: true,
+              blockPath: true
+            });
+            
+            // Additional JWT-specific validation if token is present
+            if (message.token && typeof message.token === 'string') {
+              const jwtValidation = securityValidator.validateJWT(message.token);
+              if (!jwtValidation.isValid) {
+                logger.logSecurity('invalid_jwt_format', {
+                  connectionId,
+                  userId: connObj.user?.id,
+                  ip: connObj.ip,
+                  threats: jwtValidation.threats,
+                  messageType: message.type
+                });
+                
+                const jwtError = {
+                  type: 'error',
+                  error_type: 'INVALID_JWT',
+                  message: 'Invalid JWT token format',
+                  timestamp: new Date().toISOString()
+                };
+                
+                try {
+                  socket.send(JSON.stringify(jwtError));
+                } catch (sendError) {
+                  logger.error('Failed to send JWT error response', {
+                    connectionId,
+                    error: sendError.message
+                  });
+                }
+                
+                connObj.errorCount++;
+                messageTimer.end({ success: false, error: 'invalid_jwt' });
+                return;
+              }
+            }
+          } else {
+            // For non-authentication messages, apply full security validation
+            securityValidation = securityValidator.validateInput(message, {
+              blockXSS: true,
+              blockSQL: true,
+              blockCommand: true,
+              blockPath: true
+            });
+          }
           
           if (!securityValidation.isValid) {
             connObj.securityFlags.push(...securityValidation.threats.map(t => t.type));
