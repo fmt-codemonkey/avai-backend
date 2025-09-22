@@ -612,6 +612,15 @@ class Logger {
   }
 
   /**
+   * Alias for logSecurityEvent for backward compatibility
+   * @param {string} event - Security event type
+   * @param {Object} metadata - Security metadata
+   */
+  logSecurity(event, metadata = {}) {
+    this.logSecurityEvent(event, 'medium', metadata);
+  }
+
+  /**
    * Log Railway-specific events
    * @param {string} event - Railway event type
    * @param {Object} metadata - Railway metadata
