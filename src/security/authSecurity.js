@@ -556,7 +556,7 @@ class AuthSecurity {
         // Clean blacklisted tokens (if you want to implement expiry)
         // For now, we keep them indefinitely
 
-        logger.logPerformance('auth_security_cleanup', {
+        logger.logPerformance('auth_security_cleanup', 0, {
             failedAttemptIPs: this.failedAttempts.size,
             suspiciousActivityIPs: this.suspiciousActivity.size,
             blacklistedTokens: this.blacklistedTokens.size
